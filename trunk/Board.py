@@ -1,5 +1,7 @@
-from MineTile import MineTile
+from Tile import Tile
 import random
+
+#
 
 class Board:
     
@@ -15,7 +17,7 @@ class Board:
             self.tiles[i] = [None] * rows
             #fill each space in the array with a new MineTile
             for j in range(rows):
-                self.tiles[i][j] = MineTile()
+                self.tiles[i][j] = Tile()
         #populate minefield
         mineLocations = random.sample(range(0, rows * columns) , mines) 
         for l in mineLocations:
@@ -38,33 +40,48 @@ class Board:
     #if it is a mine, return false
     #otherwise, sets it as revealed and returns true
     def reveal(self, x, y):
-        if self.tiles[x][y].mine:
-            return False
-        else:
-            self.tiles[x][y].revealed = True
-            return True
+        self.tiles[x][y].reveal()
+
+    def win(self):
+        return sum([[(not x.revealed and not x.mine) or (x.revealed and x.mine) for x in y].count(True) for y in self.tiles]) == 0
+    
+    def loss(self):
+        return sum([[x.revealed and x.mine for x in y].count(True) for y in self.tiles]) > 0
+
 
     def flag(self, x, y):
-        self.tiles[x][y].flagged = True
+        self.tiles[x][y].flag()
 
     def unflag(self, x, y):
-        self.tiles[x][y].flagged = False
+        self.tiles[x][y].unflag()
             
     def prettyPrint(self):
         s = ""
         for y in range(self.rows):
             for x in range(self.columns):          
-                s += (str(self.tiles[x][y].displayNum) if self.tiles[x][y].revealed else ("F" if self.tiles[x][y].flagged else "X")) + " "
+                s += self.tiles[x][y].prettyPrintChar() + " "
             s += '\n'
         return s
+
 
     def truePrint(self):
         s = ""
         for y in range(self.rows):
             for x in range(self.columns):
-                s += "M " if self.tiles[x][y].mine else str(self.tiles[x][y].displayNum) + " "
+                s += self.tiles[x][y].truePrintChar() + " "
             s += "\n"
         return s
 
     def incorrectFlags(self):
         return sum([[x.flagged and not x.mine for x in y].count(True) for y in self.tiles])
+
+    #return a representation of a width by width square surrounding 
+    #the point (x, y)
+    #width must be odd
+    def query(self, x, y, width):
+        offset = (width - 1) / 2
+        s = '';
+        for i in range(y - offset, y + offset + 1):
+            for j in range(x - offset, x + offset + 1):
+                s += self.tiles[i][j].prettyPrintChar() if 0 <= i < self.columns and 0 <= j < self.rows else ' '
+        return s
