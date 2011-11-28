@@ -81,7 +81,7 @@ class Board:
     def query(self, x, y, width):
         offset = (width - 1) / 2
         s = '';
-        for i in range(y - offset, y + offset + 1):
-            for j in range(x - offset, x + offset + 1):
+        for j in range(int(y - offset), int(y + offset + 1)):
+            for i in range(int(x - offset), int(x + offset + 1)):
                 s += self.tiles[i][j].prettyPrintChar() if 0 <= i < self.columns and 0 <= j < self.rows else ' '
         return s
