@@ -33,7 +33,7 @@ class MineAgent:
             f.close()
             conn.executescript(sql)
             #populate constants table
-            conn.execute('''insert into constants values ({}, {}, {}, {}, {}, {}, {}, {})'''.format(learningCoefficient, mineReward, correctFlagReward, incorrectFlagReward, unknownFlagReward, revealedReward, unrevealedReward, scope))
+            conn.execute('''insert into constants values ({}, {}, {}, {}, {}, {}, {}, {});'''.format(learningCoefficient, mineReward, correctFlagReward, incorrectFlagReward, unknownFlagReward, revealedReward, unrevealedReward, scope))
             conn.commit()
             return cls(name, scope, learningCoefficient, mineReward, correctFlagReward, incorrectFlagReward, unknownFlagReward,
                 revealedReward, unrevealedReward, conn)
@@ -58,7 +58,7 @@ class MineAgent:
 
         #getters and setters for attributes (other than scope)
         def saveConstant(self, name, value):
-            self.conn.execute('update constants set {} = {}'.format(name, value))
+            self.conn.execute('update constants set {} = {};'.format(name, value))
 
         def centerTile(self, queryString):
            index = (len(queryString) - 1) / 2
@@ -110,8 +110,11 @@ class MineAgent:
                 print board.prettyPrint()
             #save reveal history and update utility
             for x in gameLog:
-                pass
-
+                if x.actionType == Action.REVEAL:
+                    self.addTransition(x.startState, x.endState)
+                    self.stateUtility(x.endState)
+                elif x.actionType == Action.FLAG:
+                    self.addFlagHistory(x.endState, board.tiles[x.x][x.y].mine)
 
 
 
@@ -119,7 +122,7 @@ class MineAgent:
         #otherwise, create the state in the database with utility equal to its reward                    
         def stateUtility(self, state):
             cur = self.conn.cursor()
-            cur.execute("select utility from states where identity = '{}'".format(state))
+            cur.execute("select utility from states where identity = '{}';".format(state))
             r = cur.fetchone()
             if r == None:
                 center = self.centerTile(state)
@@ -131,7 +134,8 @@ class MineAgent:
                     reward = self.mineReward
                 else:
                     reward = self.revealedReward
-                cur.execute("insert into states values('{}','{}')".format(state, reward)) 
+                cur.execute("insert into states values('{}','{}');".format(state, reward)) 
+                self.conn.commit()
                 cur.close()
                 return reward
             else:
@@ -144,7 +148,7 @@ class MineAgent:
             cur = self.conn.cursor()
             currentStateUtility = self.stateUtility(state)
             #either fix sql to do this, or just compute it in python
-            cur.execute("select sum(occurances * utility) / sum(occurances) from reveal_transitions join states on identity = destination where start = '{}'".format(state))
+            cur.execute("select sum(occurances * utility) / sum(occurances) from reveal_transitions join states on identity = destination where start = '{}';".format(state))
             r = cur.fetchone()
             if r[0] == None:
                 #no history
@@ -156,4 +160,26 @@ class MineAgent:
             return util
 
 
+        def addTransition(self, start, end):
+            cur = self.conn.cursor()
+            cur.execute("select * from reveal_transitions where start = '{}' and destination = '{}';".format(start, end))
+            r = cur.fetchone()
+            if r == None:
+                cur.execute("insert into reveal_transitions(start, destination, occurances) values ('{}','{}',1);".format(start, end))
+                self.conn.commit()
+            else:
+                cur.execute("update reveal_transitions set occurances = occurances + 1 where start = '{}' and destination = '{}';".format(start, end))
+                self.conn.commit()
+            cur.close()
+
+        def addFlagHistory(self, state, correct):
+            cur = self.conn.cursor()
+            r = cur.execute("select * from flag_history where identity = '{}';".format(state))
+            if r == None:
+                cur.execute("insert into flag_history values('{}', 0, 0);".format(state))
+            if correct:
+                cur.execute("update flag_history set correctFlags = correctFlags + 1 where identity = '{}';".format(state))
+            else:
+                cur.execute("update flag_history set incorrectFlags = incorrectFlags + 1 where identity = '{}';".format(state))
+            self.conn.commit()
 
