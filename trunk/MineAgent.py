@@ -1,7 +1,6 @@
 import sqlite3
 from Action import Action
 
-
 class MineAgent:
         #initializes agent with attributes and connection to existing
         #database
@@ -98,30 +97,25 @@ class MineAgent:
                             u = self.stateUtility(nextState) - currentUtility
                             if u > plannedAction.expectedUtility:
                                 plannedAction = Action(Action.FLAG, u, q, x, y)
-                        elif center == 'F':
+                        #elif center == 'F':
                             #evaluate unflag action
-                            nextState = self.replaceCenterTile(q, 'X')
-                            u = self.stateUtility(nextState) - currentUtility
-                            if u > plannedAction.expectedUtility:
-                                plannedAction = Action(Action.UNFLAG, u, q, x, y)
+                        #    nextState = self.replaceCenterTile(q, 'X')
+                        #    u = self.stateUtility(nextState) - currentUtility
+                        #    if u > plannedAction.expectedUtility:
+                         #       plannedAction = Action(Action.UNFLAG, u, q, x, y)
                 #execute and log planned action
                 plannedAction.execute(board)
                 gameLog.append(plannedAction)
                 contin = (not board.win()) and (not board.loss())
                 print board.prettyPrint()
             #save reveal history and update utility
-            flagLogged = set()
             for x in gameLog:
                 if x.actionType == Action.REVEAL:
                     self.addTransition(x.startState, x.endState)
                     self.stateUtility(x.endState)
-                    
                 elif x.actionType == Action.FLAG:
-                    if not x.endState in flagLogged:
-                        self.addFlagHistory(x.endState, board.tiles[x.x][x.y].mine)
-                        flagLogged.add(x.endState)
-                        #update utility in database
-                        self.updateFlagUtility(x.endState)
+                    self.addFlagHistory(x.endState, board.tiles[x.x][x.y].mine)
+
 
 
         #if the given state is defined in the database, return its utility
@@ -152,6 +146,11 @@ class MineAgent:
 
         def expectedRevealUtility(self, state):
             cur = self.conn.cursor()
+            cur.execute("select sum(occurances) from reveal_transitions where start = '{}';".format(state))
+            r = cur.fetchone()
+            if r == None or r[0] < 10:
+                cur.close()
+                return 1000
             currentStateUtility = self.stateUtility(state)
             #either fix sql to do this, or just compute it in python
             cur.execute("select sum(occurances * utility) / sum(occurances) from reveal_transitions join states on identity = destination where start = '{}';".format(state))
@@ -180,25 +179,13 @@ class MineAgent:
 
         def addFlagHistory(self, state, correct):
             cur = self.conn.cursor()
-            cur.execute("select * from flag_history where identity = '{}';".format(state))
-            r = cur.fetchone()
+            r = cur.execute("select * from flag_history where identity = '{}';".format(state))
             if r == None:
                 cur.execute("insert into flag_history values('{}', 0, 0);".format(state))
             if correct:
                 cur.execute("update flag_history set correctFlags = correctFlags + 1 where identity = '{}';".format(state))
             else:
                 cur.execute("update flag_history set incorrectFlags = incorrectFlags + 1 where identity = '{}';".format(state))
-            self.conn.commit()
-
-
-        def updateFlagUtility(self, state):
-            cur = self.conn.cursor()
-            cur.execute("select * from flag_history where identity = '{}';".format(state))
-            r = cur.fetchone()
-            incorrectFlags = r['incorrectFlags']
-            correctFlags = r['correctFlags']
-            util = self.unknownFlagReward + (correctFlags * self.correctFlagReward + incorrectFlags * self.incorrectFlagReward) / (correctFlags + incorrectFlags)
-            cur.execute("update states set utility = {};".format(util))
-
             cur.close()
             self.conn.commit()
+
