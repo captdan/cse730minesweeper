@@ -179,7 +179,8 @@ class MineAgent:
 
         def addFlagHistory(self, state, correct):
             cur = self.conn.cursor()
-            r = cur.execute("select * from flag_history where identity = '{}';".format(state))
+            cur.execute("select * from flag_history where identity = '{}';".format(state))
+            r = cur.fetchone()
             if r == None:
                 cur.execute("insert into flag_history values('{}', 0, 0);".format(state))
             if correct:
