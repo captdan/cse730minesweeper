@@ -69,7 +69,7 @@ class MineAgent:
             return queryString[0:center] + replacement + queryString[center:]
 
         #play a game of minesweeper
-        def play(self, board):
+        def play(self, board, train):
             gameLog = []
             contin = True
             while(contin):
@@ -83,7 +83,7 @@ class MineAgent:
                         #if the center tile is unrevealed
                         if center == 'X' or center == 'F':
                             #evaluate reveal action
-                            u = self.expectedRevealUtility(q)
+                            u = self.expectedRevealUtility(q, train)
                             #TODO: write this to a log file instead of stdout
                             print 'reveal (' + str(x) + ',' + str(y) + '):' + str(u) + '(' + q + ')' + center
                             if plannedAction == None or u > plannedAction.expectedUtility:
@@ -95,6 +95,7 @@ class MineAgent:
                             #evaluate flag action
                             nextState = self.replaceCenterTile(q, 'F')
                             u = self.stateUtility(nextState) - currentUtility
+                            print 'flag (' + str(x) + ',' + str(y) + '):' + str(u) + '(' + q + ')' 
                             if u > plannedAction.expectedUtility:
                                 plannedAction = Action(Action.FLAG, u, q, x, y)
                         #elif center == 'F':
@@ -144,11 +145,11 @@ class MineAgent:
                 return util
             
 
-        def expectedRevealUtility(self, state):
+        def expectedRevealUtility(self, state, train):
             cur = self.conn.cursor()
             cur.execute("select sum(occurances) from reveal_transitions where start = '{}';".format(state))
             r = cur.fetchone()
-            if r == None or r[0] < 10:
+            if (r == None or r[0] < 10) and train:
                 cur.close()
                 return 1000
             currentStateUtility = self.stateUtility(state)
